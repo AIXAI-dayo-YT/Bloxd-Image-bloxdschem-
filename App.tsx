@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { generateSchematic, Axis } from './utils/converter';
-
+import { generateSchematic, Axis } from './utils/converter.ts';
 function App() {
   const [imgFile, setImgFile] = useState<File | null>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
