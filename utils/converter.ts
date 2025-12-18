@@ -1,5 +1,5 @@
-import { BloxdWriter, compressRLE } from './bloxdWriter';
-import { PALETTE, CHUNK_SIZE } from '../constants';
+import { BloxdWriter, compressRLE } from './bloxdWriter.ts';
+import { PALETTE, CHUNK_SIZE } from '../constants.ts';
 
 export enum Axis {
   Z = "Z", // Wall (Front facing)
