@@ -3,17 +3,21 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bloxd Image Converter</title>
+    <title>Bloxd.io Image Converter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        canvas { image-rendering: pixelated; max-width: 100%; height: auto; }
+    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans antialiased">
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react,typescript" data-type="module">
-        // --- 1. 定数・データ (constants.ts 内容) ---
+        // --- 1. 定数 ---
         const PALETTE = [
             { id: 51, rgb: [233, 236, 236], name: 'White Wool' },
             { id: 52, rgb: [240, 118, 19], name: 'Orange Wool' },
@@ -53,8 +57,10 @@
         // --- 2. 翻訳データ ---
         const i18n = {
             ja: {
+                title: "Bloxd.io画像コンバーター",
                 creator: "作成者",
                 langBtn: "English",
+                howToBtn: "使い方",
                 labelFile: "1. 画像を選択",
                 labelHeight: "2. 高さ(ブロック)",
                 labelAxis: "3. 向き",
@@ -66,11 +72,20 @@
                 statusDone: "完了！Bloxd.ioでインポートしてください。",
                 btnConvert: "変換してダウンロード",
                 btnProcessing: "処理中...",
-                preview: "プレビュー"
+                preview: "プレビュー",
+                howToTitle: "使い方の説明",
+                howToStep1: "1. 画像を選択ボタンから変換したい画像を選びます。",
+                howToStep2: "2. 高さを入力します。横幅は自動で調整されます。",
+                howToStep3: "3. 向きを選びます。壁に貼るなら『壁』、地面に置くなら『床』です。",
+                howToStep4: "4. 変換ボタンを押すと .bloxdschem ファイルが保存されます。",
+                howToStep5: "5. Bloxd.io内で /import コマンドを使って読み込んでください。",
+                close: "閉じる"
             },
             en: {
+                title: "Bloxd.io Image Converter",
                 creator: "Creator",
                 langBtn: "日本語",
+                howToBtn: "How to use",
                 labelFile: "1. Select Image",
                 labelHeight: "2. Height (Blocks)",
                 labelAxis: "3. Orientation",
@@ -82,11 +97,18 @@
                 statusDone: "Done! Import this in Bloxd.io.",
                 btnConvert: "Convert & Download",
                 btnProcessing: "Processing...",
-                preview: "Preview"
+                preview: "Preview",
+                howToTitle: "How to use",
+                howToStep1: "1. Click 'Select Image' to choose your file.",
+                howToStep2: "2. Enter the height. Width will be adjusted automatically.",
+                howToStep3: "3. Choose orientation. 'Wall' for vertical, 'Floor' for horizontal.",
+                howToStep4: "4. Click 'Convert' to download the .bloxdschem file.",
+                howToStep5: "5. Use /import command inside Bloxd.io to load it.",
+                close: "Close"
             }
         };
 
-        // --- 3. ロジック (bloxdWriter & converter) ---
+        // --- 3. ロジック ---
         class BloxdWriter {
             constructor() { this.buf = []; }
             varint(v) { while (v & -128) { this.buf.push((v & 0x7f) | 0x80); v >>>= 7; } this.buf.push(v); }
@@ -167,11 +189,12 @@
             return w.getBlob();
         };
 
-        // --- 4. メインUI (App.tsx) ---
+        // --- 4. メインUI ---
         const { useState, useRef, useEffect } = React;
 
         function App() {
-            const [lang, setLang] = useState('ja'); // 'ja' or 'en'
+            const [lang, setLang] = useState('ja');
+            const [showHowTo, setShowHowTo] = useState(false);
             const t = i18n[lang];
 
             const [imgFile, setImgFile] = useState(null);
@@ -182,7 +205,6 @@
             const [status, setStatus] = useState(t.statusWait);
             const canvasRef = useRef(null);
 
-            // 言語切り替え時にステータスを更新
             useEffect(() => {
                 if (!imgFile) setStatus(t.statusWait);
                 else if (!isProcessing) setStatus(t.statusLoaded);
@@ -233,16 +255,49 @@
 
             return (
                 <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-white relative">
-                    {/* 言語切り替えボタン */}
+                    {/* 左上: 使い方ボタン */}
+                    <button 
+                        onClick={() => setShowHowTo(true)}
+                        className="absolute top-6 left-6 bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center font-bold border border-gray-500 transition-transform active:scale-90"
+                        title={t.howToBtn}
+                    >
+                        ？
+                    </button>
+
+                    {/* 右上: 言語切り替え */}
                     <button 
                         onClick={toggleLang}
-                        className="absolute top-6 right-6 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-full text-sm font-bold border border-gray-500 transition-colors"
+                        className="absolute top-6 right-6 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-full text-sm font-bold border border-gray-500"
                     >
                         {t.langBtn}
                     </button>
 
+                    {/* 使い方モーダル */}
+                    {showHowTo && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" onClick={() => setShowHowTo(false)}>
+                            <div className="bg-gray-800 p-6 rounded-2xl max-w-md w-full border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <h2 className="text-xl font-bold text-green-400 mb-4 flex items-center">
+                                    <span className="mr-2">💡</span> {t.howToTitle}
+                                </h2>
+                                <ul className="space-y-3 text-sm text-gray-200">
+                                    <li>{t.howToStep1}</li>
+                                    <li>{t.howToStep2}</li>
+                                    <li>{t.howToStep3}</li>
+                                    <li>{t.howToStep4}</li>
+                                    <li>{t.howToStep5}</li>
+                                </ul>
+                                <button 
+                                    onClick={() => setShowHowTo(false)}
+                                    className="mt-6 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
+                                >
+                                    {t.close}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-700">
-                        <h1 className="text-3xl font-bold text-green-500 mb-1 text-center">Bloxd Image Converter</h1>
+                        <h1 className="text-3xl font-bold text-green-500 mb-1 text-center">{t.title}</h1>
                         
                         <div className="mb-6 text-center text-xs text-gray-400">
                             <p>{t.creator}: <span className="text-green-400 font-bold">AIXAI_YT</span></p>
@@ -277,8 +332,8 @@
                             </button>
                             
                             <div className="text-center text-xs text-gray-500 mb-[-1rem]">{t.preview}</div>
-                            <div className="flex justify-center bg-black/40 p-4 rounded-lg border border-gray-700 overflow-auto">
-                                <canvas ref={canvasRef} style={{ imageRendering: 'pixelated' }} />
+                            <div className="flex justify-center bg-black/40 p-4 rounded-lg border border-gray-700 overflow-auto shadow-inner min-h-[100px] items-center text-gray-600 italic">
+                                {imgSrc ? <canvas ref={canvasRef} /> : 'No image'}
                             </div>
                         </div>
                     </div>
