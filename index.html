@@ -64,21 +64,21 @@
                 labelFile: "1. 画像を選択",
                 labelHeight: "2. 高さ(ブロック)",
                 labelAxis: "3. 向き",
-                axisZ: "壁 (正面)",
-                axisX: "床 (平面)",
+                axisZ: "向き Z",
+                axisX: "向き X",
                 statusWait: "画像を読み込んでください。",
                 statusLoaded: "画像を読み込みました。",
                 statusConverting: "変換中...",
-                statusDone: "完了！Bloxd.ioでインポートしてください。",
+                statusDone: "完了！",
                 btnConvert: "変換してダウンロード",
                 btnProcessing: "処理中...",
                 preview: "プレビュー",
                 howToTitle: "使い方の説明",
                 howToStep1: "1. 画像を選択ボタンから変換したい画像を選びます。",
                 howToStep2: "2. 高さを入力します。横幅は自動で調整されます。",
-                howToStep3: "3. 向きを選びます。壁に貼るなら『壁』、地面に置くなら『床』です。",
+                howToStep3: "3. 向き（Z軸またはX軸）を選びます。",
                 howToStep4: "4. 変換ボタンを押すと .bloxdschem ファイルが保存されます。",
-                howToStep5: "5. Bloxd.io内で /import コマンドを使って読み込んでください。",
+                howToStep5: "5. Bloxd.io内で //schematic load コマンドを使って読み込み、終わったら //paste で実行してください。",
                 close: "閉じる"
             },
             en: {
@@ -89,21 +89,21 @@
                 labelFile: "1. Select Image",
                 labelHeight: "2. Height (Blocks)",
                 labelAxis: "3. Orientation",
-                axisZ: "Wall (Z)",
-                axisX: "Floor (X)",
+                axisZ: "Axis Z",
+                axisX: "Axis X",
                 statusWait: "Please select an image.",
                 statusLoaded: "Image loaded.",
                 statusConverting: "Converting...",
-                statusDone: "Done! Import this in Bloxd.io.",
+                statusDone: "Done!",
                 btnConvert: "Convert & Download",
                 btnProcessing: "Processing...",
                 preview: "Preview",
                 howToTitle: "How to use",
                 howToStep1: "1. Click 'Select Image' to choose your file.",
                 howToStep2: "2. Enter the height. Width will be adjusted automatically.",
-                howToStep3: "3. Choose orientation. 'Wall' for vertical, 'Floor' for horizontal.",
+                howToStep3: "3. Choose orientation (Axis Z or Axis X).",
                 howToStep4: "4. Click 'Convert' to download the .bloxdschem file.",
-                howToStep5: "5. Use /import command inside Bloxd.io to load it.",
+                howToStep5: "5. Use //schematic load command in Bloxd.io, then use //paste once loaded.",
                 close: "Close"
             }
         };
@@ -254,12 +254,11 @@
             };
 
             return (
-                <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-white relative">
+                <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-white relative font-sans">
                     {/* 左上: 使い方ボタン */}
                     <button 
                         onClick={() => setShowHowTo(true)}
                         className="absolute top-6 left-6 bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center font-bold border border-gray-500 transition-transform active:scale-90"
-                        title={t.howToBtn}
                     >
                         ？
                     </button>
@@ -276,19 +275,19 @@
                     {showHowTo && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" onClick={() => setShowHowTo(false)}>
                             <div className="bg-gray-800 p-6 rounded-2xl max-w-md w-full border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-                                <h2 className="text-xl font-bold text-green-400 mb-4 flex items-center">
-                                    <span className="mr-2">💡</span> {t.howToTitle}
+                                <h2 className="text-xl font-bold text-green-400 mb-4 flex items-center text-center justify-center underline">
+                                     {t.howToTitle}
                                 </h2>
-                                <ul className="space-y-3 text-sm text-gray-200">
+                                <ul className="space-y-4 text-sm text-gray-200 leading-relaxed">
                                     <li>{t.howToStep1}</li>
                                     <li>{t.howToStep2}</li>
                                     <li>{t.howToStep3}</li>
                                     <li>{t.howToStep4}</li>
-                                    <li>{t.howToStep5}</li>
+                                    <li className="bg-gray-900 p-2 rounded border border-gray-700 text-yellow-200">{t.howToStep5}</li>
                                 </ul>
                                 <button 
                                     onClick={() => setShowHowTo(false)}
-                                    className="mt-6 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
+                                    className="mt-6 w-full py-2 bg-green-700 hover:bg-green-600 rounded-lg font-bold transition-colors"
                                 >
                                     {t.close}
                                 </button>
@@ -297,7 +296,7 @@
                     )}
 
                     <div className="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-700">
-                        <h1 className="text-3xl font-bold text-green-500 mb-1 text-center">{t.title}</h1>
+                        <h1 className="text-2xl md:text-3xl font-bold text-green-500 mb-1 text-center">{t.title}</h1>
                         
                         <div className="mb-6 text-center text-xs text-gray-400">
                             <p>{t.creator}: <span className="text-green-400 font-bold">AIXAI_YT</span></p>
@@ -307,7 +306,7 @@
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-gray-400 text-sm mb-2 font-bold">{t.labelFile}</label>
-                                <input type="file" accept="image/*" onChange={handleFileChange} className="w-full bg-gray-700 p-2 rounded cursor-pointer border border-gray-600" />
+                                <input type="file" accept="image/*" onChange={handleFileChange} className="w-full bg-gray-700 p-2 rounded cursor-pointer border border-gray-600 file:bg-gray-600 file:border-none file:text-white file:rounded file:px-2 file:mr-2" />
                             </div>
                             <div className="flex gap-4">
                                 <div className="flex-1">
@@ -323,7 +322,7 @@
                                 </div>
                             </div>
                             
-                            <div className="bg-gray-900 p-3 rounded text-yellow-300 text-center font-mono text-sm border border-gray-700">
+                            <div className="bg-gray-900 p-3 rounded text-yellow-300 text-center font-mono text-sm border border-gray-700 min-h-[44px] flex items-center justify-center">
                                 {status}
                             </div>
 
