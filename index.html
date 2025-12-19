@@ -9,15 +9,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
         canvas { image-rendering: pixelated; max-width: 100%; height: auto; }
+        /* モード切替の滑らかなアニメーション */
+        .transition-theme { transition: background-color 0.3s, color 0.3s, border-color 0.3s; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans antialiased">
+<body class="font-sans antialiased transition-theme">
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react,typescript" data-type="module">
-        // --- 1. 定数 ---
+        // --- 1. 定数 (パレット等) ---
         const PALETTE = [
             { id: 51, rgb: [233, 236, 236], name: 'White Wool' },
             { id: 52, rgb: [240, 118, 19], name: 'Orange Wool' },
@@ -60,7 +62,7 @@
                 title: "Bloxd.io画像コンバーター",
                 creator: "作成者",
                 langBtn: "English",
-                howToBtn: "使い方",
+                howToBtn: "？",
                 labelFile: "1. 画像を選択",
                 labelHeight: "2. 高さ(ブロック)",
                 labelAxis: "3. 向き",
@@ -85,7 +87,7 @@
                 title: "Bloxd.io Image Converter",
                 creator: "Creator",
                 langBtn: "日本語",
-                howToBtn: "How to use",
+                howToBtn: "?",
                 labelFile: "1. Select Image",
                 labelHeight: "2. Height (Blocks)",
                 labelAxis: "3. Orientation",
@@ -108,7 +110,7 @@
             }
         };
 
-        // --- 3. ロジック ---
+        // --- 3. ロジック (BloxdWriter & generate) ---
         class BloxdWriter {
             constructor() { this.buf = []; }
             varint(v) { while (v & -128) { this.buf.push((v & 0x7f) | 0x80); v >>>= 7; } this.buf.push(v); }
@@ -146,8 +148,7 @@
         }
 
         const generateSchematic = (imgData, imgWidth, imgHeight, axis) => {
-            const sizeY = imgHeight;
-            const depth = 2;
+            const sizeY = imgHeight; const depth = 2;
             let sizeX = axis === Axis.Z ? imgWidth : depth;
             let sizeZ = axis === Axis.Z ? depth : imgWidth;
             const blocks = Array.from({ length: sizeY }, () => Array.from({ length: sizeZ }, () => new Array(sizeX).fill(0)));
@@ -162,8 +163,7 @@
                 }
             }
             const w = new BloxdWriter();
-            w.u8(4); w.u8(0); w.u8(0); w.u8(0);
-            w.str("FromImage");
+            w.u8(4); w.u8(0); w.u8(0); w.u8(0); w.str("FromImage");
             w.zigzag(0); w.zigzag(0); w.zigzag(0);
             w.zigzag(sizeX); w.zigzag(sizeY); w.zigzag(sizeZ);
             const CX = Math.ceil(sizeX / CHUNK_SIZE), CY = Math.ceil(sizeY / CHUNK_SIZE), CZ = Math.ceil(sizeZ / CHUNK_SIZE);
@@ -189,11 +189,12 @@
             return w.getBlob();
         };
 
-        // --- 4. メインUI ---
+        // --- 4. メインUI (App) ---
         const { useState, useRef, useEffect } = React;
 
         function App() {
             const [lang, setLang] = useState('ja');
+            const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
             const [showHowTo, setShowHowTo] = useState(false);
             const t = i18n[lang];
 
@@ -205,10 +206,15 @@
             const [status, setStatus] = useState(t.statusWait);
             const canvasRef = useRef(null);
 
+            // テーマ設定の反映
             useEffect(() => {
-                if (!imgFile) setStatus(t.statusWait);
-                else if (!isProcessing) setStatus(t.statusLoaded);
-            }, [lang]);
+                document.body.className = theme === 'dark' 
+                    ? "bg-gray-900 text-gray-100 font-sans transition-theme" 
+                    : "bg-gray-50 text-gray-900 font-sans transition-theme";
+            }, [theme]);
+
+            const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+            const toggleLang = () => setLang(lang === 'ja' ? 'en' : 'ja');
 
             const handleFileChange = (e) => {
                 const file = e.target.files?.[0];
@@ -218,8 +224,6 @@
                     setStatus(t.statusLoaded);
                 }
             };
-
-            const toggleLang = () => setLang(lang === 'ja' ? 'en' : 'ja');
 
             useEffect(() => {
                 if (!imgSrc || !canvasRef.current) return;
@@ -244,96 +248,97 @@
                     const canvas = canvasRef.current;
                     const imgData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
                     const blob = generateSchematic(imgData.data, canvas.width, canvas.height, axis);
-                    const url = URL.createObjectURL(blob);
-                    
-                    const fileName = imgFile.name; 
-                    const downloadName = `image_${fileName}_${height}x${canvas.width}.bloxdschem`;
-                    
+                    const downloadName = `image_${imgFile.name}_${height}x${canvas.width}.bloxdschem`;
                     const a = document.createElement('a');
-                    a.href = url; 
-                    a.download = downloadName;
+                    a.href = URL.createObjectURL(blob); a.download = downloadName;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     setStatus(t.statusDone);
                 } catch (e) { setStatus(`Error: ${e.message}`); }
                 finally { setIsProcessing(false); }
             };
 
+            // テーマに基づく動的スタイル
+            const cardBg = theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-xl';
+            const cardBorder = theme === 'dark' ? 'border-gray-700' : 'border-gray-200';
+            const inputBg = theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100';
+            const inputBorder = theme === 'dark' ? 'border-gray-600' : 'border-gray-300';
+            const statusBg = theme === 'dark' ? 'bg-gray-900' : 'bg-gray-200';
+
             return (
-                <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-white relative font-sans">
-                    <button 
-                        onClick={() => setShowHowTo(true)}
-                        className="absolute top-6 left-6 bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center font-bold border border-gray-500 transition-transform active:scale-90"
-                    >
-                        ？
-                    </button>
+                <div className="min-h-screen flex items-center justify-center p-4 relative">
+                    {/* 上部ボタンエリア */}
+                    <div className="absolute top-6 left-6 flex gap-2">
+                        <button onClick={() => setShowHowTo(true)} className={`${inputBg} hover:opacity-80 w-10 h-10 rounded-full flex items-center justify-center font-bold border ${cardBorder} transition-all active:scale-90`}>
+                            {t.howToBtn}
+                        </button>
+                    </div>
 
-                    <button 
-                        onClick={toggleLang}
-                        className="absolute top-6 right-6 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-full text-sm font-bold border border-gray-500"
-                    >
-                        {t.langBtn}
-                    </button>
+                    <div className="absolute top-6 right-6 flex gap-2">
+                        {/* テーマ切替 */}
+                        <button onClick={toggleTheme} className={`${inputBg} px-3 py-2 rounded-full text-sm font-bold border ${cardBorder} flex items-center gap-1`}>
+                            {theme === 'dark' ? '◻️' : 'dark◼️'}
+                        </button>
+                        {/* 言語切替 */}
+                        <button onClick={toggleLang} className={`${inputBg} px-4 py-2 rounded-full text-sm font-bold border ${cardBorder}`}>
+                            {t.langBtn}
+                        </button>
+                    </div>
 
+                    {/* モーダル */}
                     {showHowTo && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" onClick={() => setShowHowTo(false)}>
-                            <div className="bg-gray-800 p-6 rounded-2xl max-w-md w-full border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-                                <h2 className="text-xl font-bold text-green-400 mb-4 flex items-center text-center justify-center underline">
-                                     {t.howToTitle}
-                                </h2>
-                                <ul className="space-y-4 text-sm text-gray-200 leading-relaxed">
+                            <div className={`${cardBg} p-6 rounded-2xl max-w-md w-full border ${cardBorder} shadow-2xl`} onClick={e => e.stopPropagation()}>
+                                <h2 className="text-xl font-bold text-green-500 mb-4 text-center underline">{t.howToTitle}</h2>
+                                <ul className="space-y-4 text-sm leading-relaxed">
                                     <li>{t.howToStep1}</li>
                                     <li>{t.howToStep2}</li>
                                     <li>{t.howToStep3}</li>
                                     <li>{t.howToStep4}</li>
-                                    <li className="bg-gray-900 p-2 rounded border border-gray-700 text-yellow-200">{t.howToStep5}</li>
+                                    <li className={`p-2 rounded border ${inputBorder} ${statusBg} text-green-500 font-mono`}>{t.howToStep5}</li>
                                 </ul>
-                                <button 
-                                    onClick={() => setShowHowTo(false)}
-                                    className="mt-6 w-full py-2 bg-green-700 hover:bg-green-600 rounded-lg font-bold transition-colors"
-                                >
+                                <button onClick={() => setShowHowTo(false)} className="mt-6 w-full py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-500 transition-colors">
                                     {t.close}
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    <div className="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-700">
+                    <div className={`${cardBg} ${cardBorder} border p-8 rounded-2xl max-w-2xl w-full transition-all`}>
                         <h1 className="text-2xl md:text-3xl font-bold text-green-500 mb-1 text-center">{t.title}</h1>
-                        
-                        <div className="mb-6 text-center text-xs text-gray-400">
-                            <p>{t.creator}: <span className="text-green-400 font-bold">AIXAI_YT</span></p>
-                            <p>YouTube: <a href="https://www.youtube.com/@AIXAI-r7w" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">https://www.youtube.com/@AIXAI-r7w</a></p>
+                        <div className="mb-6 text-center text-xs opacity-60">
+                            <p>{t.creator}: <span className="text-green-500 font-bold">AIXAI_YT</span></p>
+                            <p>YouTube: <a href="https://www.youtube.com/@AIXAI-r7w" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">https://www.youtube.com/@AIXAI-r7w</a></p>
                         </div>
 
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-gray-400 text-sm mb-2 font-bold">{t.labelFile}</label>
-                                <input type="file" accept="image/*" onChange={handleFileChange} className="w-full bg-gray-700 p-2 rounded cursor-pointer border border-gray-600 file:bg-gray-600 file:border-none file:text-white file:rounded file:px-2 file:mr-2" />
+                                <label className="block opacity-70 text-sm mb-2 font-bold">{t.labelFile}</label>
+                                <input type="file" accept="image/*" onChange={handleFileChange} className={`w-full ${inputBg} p-2 rounded cursor-pointer border ${inputBorder} file:bg-gray-500 file:text-white file:border-none file:rounded file:px-2 file:mr-2`} />
                             </div>
                             <div className="flex gap-4">
                                 <div className="flex-1">
-                                    <label className="block text-gray-400 text-sm mb-2 font-bold">{t.labelHeight}</label>
-                                    <input type="number" value={height} onChange={(e) => setHeight(parseInt(e.target.value) || 1)} className="w-full bg-gray-700 p-2 rounded border border-gray-600 outline-none focus:border-green-500" />
+                                    <label className="block opacity-70 text-sm mb-2 font-bold">{t.labelHeight}</label>
+                                    <input type="number" value={height} onChange={(e) => setHeight(parseInt(e.target.value) || 1)} className={`w-full ${inputBg} p-2 rounded border ${inputBorder} outline-none focus:border-green-500`} />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="block text-gray-400 text-sm mb-2 font-bold">{t.labelAxis}</label>
-                                    <select value={axis} onChange={(e) => setAxis(e.target.value)} className="w-full bg-gray-700 p-2 rounded border border-gray-600 cursor-pointer">
+                                    <label className="block opacity-70 text-sm mb-2 font-bold">{t.labelAxis}</label>
+                                    <select value={axis} onChange={(e) => setAxis(e.target.value)} className={`w-full ${inputBg} p-2 rounded border ${inputBorder} cursor-pointer`}>
                                         <option value={Axis.Z}>{t.axisZ}</option>
                                         <option value={Axis.X}>{t.axisX}</option>
                                     </select>
                                 </div>
                             </div>
                             
-                            <div className="bg-gray-900 p-3 rounded text-yellow-300 text-center font-mono text-sm border border-gray-700 min-h-[44px] flex items-center justify-center">
+                            <div className={`${statusBg} p-3 rounded text-green-500 text-center font-mono text-sm border ${inputBorder} min-h-[44px] flex items-center justify-center`}>
                                 {status}
                             </div>
 
-                            <button onClick={handleConvert} disabled={!imgFile || isProcessing} className="w-full py-4 bg-green-600 rounded-lg font-bold text-lg hover:bg-green-500 disabled:bg-gray-600 transition-all active:scale-95 shadow-lg">
+                            <button onClick={handleConvert} disabled={!imgFile || isProcessing} className="w-full py-4 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-500 disabled:bg-gray-400 transition-all active:scale-95 shadow-lg">
                                 {isProcessing ? t.btnProcessing : t.btnConvert}
                             </button>
                             
-                            <div className="text-center text-xs text-gray-500 mb-[-1rem]">{t.preview}</div>
-                            <div className="flex justify-center bg-black/40 p-4 rounded-lg border border-gray-700 overflow-auto shadow-inner min-h-[100px] items-center text-gray-600 italic">
+                            <div className="text-center text-xs opacity-50 mb-[-1rem]">{t.preview}</div>
+                            <div className={`flex justify-center bg-opacity-20 ${theme === 'dark' ? 'bg-black' : 'bg-gray-300'} p-4 rounded-lg border ${inputBorder} overflow-auto min-h-[100px] items-center italic opacity-60`}>
                                 {imgSrc ? <canvas ref={canvasRef} /> : 'No image'}
                             </div>
                         </div>
