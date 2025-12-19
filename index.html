@@ -13,7 +13,7 @@
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react,typescript" data-type="module">
-        // 1. constants.ts の内容
+        // 1. constants.ts
         const PALETTE = [
             { id: 51, rgb: [233, 236, 236], name: 'White Wool' },
             { id: 52, rgb: [240, 118, 19], name: 'Orange Wool' },
@@ -50,7 +50,7 @@
         ];
         const CHUNK_SIZE = 32;
 
-        // 2. bloxdWriter.ts の内容
+        // 2. bloxdWriter.ts
         class BloxdWriter {
             constructor() { this.buf = []; }
             varint(v) { while (v & -128) { this.buf.push((v & 0x7f) | 0x80); v >>>= 7; } this.buf.push(v); }
@@ -76,7 +76,7 @@
             return new Uint8Array(out);
         }
 
-        // 3. converter.ts の内容
+        // 3. converter.ts
         const Axis = { Z: "Z", X: "X" };
         function nearestColorID(r, g, b, a) {
             if (a < 128) return 0;
@@ -132,7 +132,7 @@
             return w.getBlob();
         };
 
-        // 4. App.tsx の内容
+        // 4. App.tsx + Creator Info
         const { useState, useRef, useEffect } = React;
 
         function App() {
@@ -189,21 +189,37 @@
             return (
                 <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-white">
                     <div className="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-gray-700">
-                        <h1 className="text-3xl font-bold text-green-500 mb-6 text-center">Bloxd Image Converter</h1>
+                        <h1 className="text-3xl font-bold text-green-500 mb-2 text-center">Bloxd Image Converter</h1>
+                        
+                        {/* 作成者情報セクション */}
+                        <div className="mb-6 text-center text-sm text-gray-400">
+                            <p>作成者: <span className="text-green-400 font-bold">AIXAI_YT</span></p>
+                            <p>YouTube: <a href="https://www.youtube.com/@AIXAI-r7w" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">https://www.youtube.com/@AIXAI-r7w</a></p>
+                        </div>
+
                         <div className="space-y-6">
-                            <input type="file" accept="image/*" onChange={handleFileChange} className="w-full bg-gray-700 p-2 rounded" />
-                            <div className="flex gap-4">
-                                <input type="number" value={height} onChange={(e) => setHeight(parseInt(e.target.value))} className="flex-1 bg-gray-700 p-2 rounded" />
-                                <select value={axis} onChange={(e) => setAxis(e.target.value)} className="flex-1 bg-gray-700 p-2 rounded">
-                                    <option value={Axis.Z}>壁 (正面)</option>
-                                    <option value={Axis.X}>床 (平面)</option>
-                                </select>
+                            <div>
+                                <label className="block text-gray-400 mb-2">1. 画像を選択</label>
+                                <input type="file" accept="image/*" onChange={handleFileChange} className="w-full bg-gray-700 p-2 rounded cursor-pointer" />
                             </div>
-                            <div className="bg-gray-900 p-3 rounded text-yellow-300 text-center">{status}</div>
-                            <button onClick={handleConvert} disabled={!imgFile || isProcessing} className="w-full py-3 bg-green-600 rounded font-bold hover:bg-green-500 disabled:bg-gray-600">
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-gray-400 mb-2">2. 高さ(ブロック)</label>
+                                    <input type="number" value={height} onChange={(e) => setHeight(parseInt(e.target.value) || 1)} className="w-full bg-gray-700 p-2 rounded" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-gray-400 mb-2">3. 向き</label>
+                                    <select value={axis} onChange={(e) => setAxis(e.target.value)} className="w-full bg-gray-700 p-2 rounded">
+                                        <option value={Axis.Z}>壁 (正面)</option>
+                                        <option value={Axis.X}>床 (平面)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="bg-gray-900 p-3 rounded text-yellow-300 text-center font-mono text-sm">{status}</div>
+                            <button onClick={handleConvert} disabled={!imgFile || isProcessing} className="w-full py-3 bg-green-600 rounded font-bold hover:bg-green-500 disabled:bg-gray-600 transition-colors">
                                 {isProcessing ? '処理中...' : '変換してダウンロード'}
                             </button>
-                            <div className="flex justify-center bg-black/40 p-4 rounded border border-gray-700">
+                            <div className="flex justify-center bg-black/40 p-4 rounded border border-gray-700 overflow-auto">
                                 <canvas ref={canvasRef} style={{ imageRendering: 'pixelated' }} />
                             </div>
                         </div>
@@ -212,7 +228,7 @@
             );
         }
 
-        // 5. index.tsx の内容
+        // 5. index.tsx
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
