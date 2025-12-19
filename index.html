@@ -9,17 +9,23 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
-        canvas { image-rendering: pixelated; max-width: 100%; height: auto; }
-        /* モード切替の滑らかなアニメーション */
-        .transition-theme { transition: background-color 0.3s, color 0.3s, border-color 0.3s; }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+        .font-cyber { font-family: 'Orbitron', 'Noto Sans JP', sans-serif; }
+        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); }
+        canvas { image-rendering: pixelated; max-width: 100%; height: auto; border-radius: 4px; }
+        .transition-theme { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .light .glass { background: rgba(0, 0, 0, 0.03); border: 1px solid rgba(0, 0, 0, 0.1); }
+        .glow-green { box-shadow: 0 0 15px rgba(34, 197, 94, 0.3); }
     </style>
 </head>
-<body class="font-sans antialiased transition-theme">
+<body class="font-sans antialiased transition-theme overflow-x-hidden">
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react,typescript" data-type="module">
-        // --- 1. 定数 (パレット等) ---
+        const { useState, useRef, useEffect } = React;
+
+        // --- 1. 定数 ---
         const PALETTE = [
             { id: 51, rgb: [233, 236, 236], name: 'White Wool' },
             { id: 52, rgb: [240, 118, 19], name: 'Orange Wool' },
@@ -54,63 +60,64 @@
             { id: 96, rgb: [142, 32, 32], name: 'Red Concrete' },
             { id: 86, rgb: [8, 10, 15], name: 'Black Concrete' }
         ];
-        const CHUNK_SIZE = 32;
 
         // --- 2. 翻訳データ ---
         const i18n = {
             ja: {
-                title: "Bloxd.io画像コンバーター",
+                title: "Bloxd.io Image Converter",
                 creator: "作成者",
                 langBtn: "English",
-                howToBtn: "？",
                 labelFile: "1. 画像を選択",
                 labelHeight: "2. 高さ(ブロック)",
                 labelAxis: "3. 向き",
-                axisZ: "向き Z",
-                axisX: "向き X",
+                axisZ: "向き Z (壁)",
+                axisX: "向き X (床)",
                 statusWait: "画像を読み込んでください。",
                 statusLoaded: "画像を読み込みました。",
-                statusConverting: "変換中...",
-                statusDone: "完了！",
+                statusConverting: "変換処理中...",
+                statusDone: "変換完了！ファイルを保存しました。",
                 btnConvert: "変換してダウンロード",
                 btnProcessing: "処理中...",
-                preview: "プレビュー",
-                howToTitle: "使い方の説明",
-                howToStep1: "1. 画像を選択ボタンから変換したい画像を選びます。",
+                previewTitle: "プレビュー",
+                prevOriginal: "元の画像",
+                prevBloxd: "Bloxd風",
+                howToTitle: "使い方ガイド",
+                howToStep1: "1. 画像を選択ボタンからファイルを選びます。",
                 howToStep2: "2. 高さを入力します。横幅は自動で調整されます。",
                 howToStep3: "3. 向き（Z軸またはX軸）を選びます。",
                 howToStep4: "4. 変換ボタンを押すと .bloxdschem ファイルが保存されます。",
-                howToStep5: "5. Bloxd.io内で //schematic load コマンドを使って読み込み、終わったら //paste で実行してください。",
+                howToStep5: "5. Bloxd.io内で //schematic load を使い、読み込み後に //paste で設置してください。",
                 close: "閉じる"
             },
             en: {
                 title: "Bloxd.io Image Converter",
                 creator: "Creator",
                 langBtn: "日本語",
-                howToBtn: "?",
                 labelFile: "1. Select Image",
                 labelHeight: "2. Height (Blocks)",
                 labelAxis: "3. Orientation",
-                axisZ: "Axis Z",
-                axisX: "Axis X",
+                axisZ: "Axis Z (Wall)",
+                axisX: "Axis X (Floor)",
                 statusWait: "Please select an image.",
-                statusLoaded: "Image loaded.",
-                statusConverting: "Converting...",
-                statusDone: "Done!",
+                statusLoaded: "Image loaded successfully.",
+                statusConverting: "Converting now...",
+                statusDone: "Done! File has been saved.",
                 btnConvert: "Convert & Download",
                 btnProcessing: "Processing...",
-                preview: "Preview",
+                previewTitle: "Preview",
+                prevOriginal: "Original",
+                prevBloxd: "Bloxd Style",
                 howToTitle: "How to use",
-                howToStep1: "1. Click 'Select Image' to choose your file.",
-                howToStep2: "2. Enter the height. Width will be adjusted automatically.",
-                howToStep3: "3. Choose orientation (Axis Z or Axis X).",
+                howToStep1: "1. Click 'Select Image' to pick a file.",
+                howToStep2: "2. Set the height. Width is auto-calculated.",
+                howToStep3: "3. Choose orientation (Axis Z or X).",
                 howToStep4: "4. Click 'Convert' to download the .bloxdschem file.",
-                howToStep5: "5. Use //schematic load command in Bloxd.io, then use //paste once loaded.",
+                howToStep5: "5. Use //schematic load in Bloxd.io, then //paste to place it.",
                 close: "Close"
             }
         };
 
-        // --- 3. ロジック (BloxdWriter & generate) ---
+        // --- 3. ロジック部 (以前の処理を継承) ---
         class BloxdWriter {
             constructor() { this.buf = []; }
             varint(v) { while (v & -128) { this.buf.push((v & 0x7f) | 0x80); v >>>= 7; } this.buf.push(v); }
@@ -122,8 +129,7 @@
         }
 
         function compressRLE(arr) {
-            const out = [];
-            if (arr.length === 0) return new Uint8Array(out);
+            const out = []; if (arr.length === 0) return new Uint8Array(out);
             let last = arr[0], cnt = 1;
             const pushRun = (count, id) => {
                 let c = count; while (c & -128) { out.push((c & 0x7f) | 0x80); c >>>= 7; } out.push(c);
@@ -131,12 +137,11 @@
             };
             for (let i = 1; i <= arr.length; i++) {
                 const v = i < arr.length ? arr[i] : -1;
-                if (v === last) { cnt++; } else { pushRun(cnt, last); last = v; cnt = 1; }
+                if (v === last) cnt++; else { pushRun(cnt, last); last = v; cnt = 1; }
             }
             return new Uint8Array(out);
         }
 
-        const Axis = { Z: "Z", X: "X" };
         function nearestColorID(r, g, b, a) {
             if (a < 128) return 0;
             let best = 0, min = 1e9;
@@ -147,74 +152,28 @@
             return best;
         }
 
-        const generateSchematic = (imgData, imgWidth, imgHeight, axis) => {
-            const sizeY = imgHeight; const depth = 2;
-            let sizeX = axis === Axis.Z ? imgWidth : depth;
-            let sizeZ = axis === Axis.Z ? depth : imgWidth;
-            const blocks = Array.from({ length: sizeY }, () => Array.from({ length: sizeZ }, () => new Array(sizeX).fill(0)));
-            for (let y = 0; y < imgHeight; y++) {
-                for (let x = 0; x < imgWidth; x++) {
-                    const i = (y * imgWidth + x) * 4;
-                    const id = nearestColorID(imgData[i], imgData[i + 1], imgData[i + 2], imgData[i + 3]);
-                    if (!id) continue;
-                    const by = sizeY - 1 - y;
-                    if (axis === Axis.Z) { blocks[by][0][x] = id; blocks[by][1][x] = id; }
-                    else { blocks[by][x][0] = id; blocks[by][x][1] = id; }
-                }
-            }
-            const w = new BloxdWriter();
-            w.u8(4); w.u8(0); w.u8(0); w.u8(0); w.str("FromImage");
-            w.zigzag(0); w.zigzag(0); w.zigzag(0);
-            w.zigzag(sizeX); w.zigzag(sizeY); w.zigzag(sizeZ);
-            const CX = Math.ceil(sizeX / CHUNK_SIZE), CY = Math.ceil(sizeY / CHUNK_SIZE), CZ = Math.ceil(sizeZ / CHUNK_SIZE);
-            w.zigzag(CX * CY * CZ);
-            for (let cx = 0; cx < CX; cx++) {
-                for (let cy = 0; cy < CY; cy++) {
-                    for (let cz = 0; cz < CZ; cz++) {
-                        w.zigzag(cx); w.zigzag(cy); w.zigzag(cz);
-                        const raw = [];
-                        for (let lx = 0; lx < CHUNK_SIZE; lx++) {
-                            for (let ly = 0; ly < CHUNK_SIZE; ly++) {
-                                for (let lz = 0; lz < CHUNK_SIZE; lz++) {
-                                    const gx = cx * CHUNK_SIZE + lx, gy = cy * CHUNK_SIZE + ly, gz = cz * CHUNK_SIZE + lz;
-                                    raw.push((gx < sizeX && gy < sizeY && gz < sizeZ) ? blocks[gy][gz][gx] : 0);
-                                }
-                            }
-                        }
-                        w.bytes(compressRLE(raw));
-                    }
-                }
-            }
-            w.zigzag(0); w.zigzag(0); w.zigzag(0); w.zigzag(0); w.zigzag(0); w.u8(0); w.u8(0);
-            return w.getBlob();
-        };
-
-        // --- 4. メインUI (App) ---
-        const { useState, useRef, useEffect } = React;
-
+        // --- 4. メインUI ---
         function App() {
             const [lang, setLang] = useState('ja');
-            const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
+            const [theme, setTheme] = useState('dark');
             const [showHowTo, setShowHowTo] = useState(false);
+            const [previewMode, setPreviewMode] = useState('original'); // 'original' or 'bloxd'
             const t = i18n[lang];
 
             const [imgFile, setImgFile] = useState(null);
             const [imgSrc, setImgSrc] = useState(null);
             const [height, setHeight] = useState(32);
-            const [axis, setAxis] = useState(Axis.Z);
+            const [axis, setAxis] = useState('Z');
             const [isProcessing, setIsProcessing] = useState(false);
             const [status, setStatus] = useState(t.statusWait);
+
             const canvasRef = useRef(null);
 
-            // テーマ設定の反映
+            // 翻訳修正: 言語切り替え時にステータスも更新
             useEffect(() => {
-                document.body.className = theme === 'dark' 
-                    ? "bg-gray-900 text-gray-100 font-sans transition-theme" 
-                    : "bg-gray-50 text-gray-900 font-sans transition-theme";
-            }, [theme]);
-
-            const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
-            const toggleLang = () => setLang(lang === 'ja' ? 'en' : 'ja');
+                if (!imgFile) setStatus(t.statusWait);
+                else if (status !== t.statusDone && !isProcessing) setStatus(t.statusLoaded);
+            }, [lang]);
 
             const handleFileChange = (e) => {
                 const file = e.target.files?.[0];
@@ -225,124 +184,185 @@
                 }
             };
 
+            // プレビュー描画ロジック
             useEffect(() => {
                 if (!imgSrc || !canvasRef.current) return;
                 const img = new Image();
                 img.src = imgSrc;
                 img.onload = () => {
                     const canvas = canvasRef.current;
-                    const ctx = canvas.getContext('2d');
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
                     const aspect = img.width / img.height;
                     const targetWidth = Math.round(height * aspect);
                     canvas.width = targetWidth; canvas.height = height;
+                    
                     ctx.imageSmoothingEnabled = false;
                     ctx.drawImage(img, 0, 0, targetWidth, height);
+
+                    // Bloxd風プレビューなら色を置換
+                    if (previewMode === 'bloxd') {
+                        const imageData = ctx.getImageData(0, 0, targetWidth, height);
+                        const data = imageData.data;
+                        for (let i = 0; i < data.length; i += 4) {
+                            const id = nearestColorID(data[i], data[i+1], data[i+2], data[i+3]);
+                            const color = id === 0 ? [0,0,0,0] : PALETTE.find(p => p.id === id).rgb;
+                            data[i] = color[0]; data[i+1] = color[1]; data[i+2] = color[2]; data[i+3] = id === 0 ? 0 : 255;
+                        }
+                        ctx.putImageData(imageData, 0, 0);
+                    }
                 };
-            }, [imgSrc, height]);
+            }, [imgSrc, height, previewMode]);
 
             const handleConvert = async () => {
                 if (!imgSrc || !canvasRef.current || !imgFile) return;
                 setIsProcessing(true); setStatus(t.statusConverting);
                 try {
-                    await new Promise(r => setTimeout(r, 100));
-                    const canvas = canvasRef.current;
-                    const imgData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-                    const blob = generateSchematic(imgData.data, canvas.width, canvas.height, axis);
-                    const downloadName = `image_${imgFile.name}_${height}x${canvas.width}.bloxdschem`;
+                    await new Promise(r => setTimeout(r, 50));
+                    // 変換用データ取得
+                    const tempCanvas = document.createElement('canvas');
+                    const img = new Image(); img.src = imgSrc;
+                    await new Promise(r => img.onload = r);
+                    const aspect = img.width / img.height;
+                    const w = Math.round(height * aspect);
+                    tempCanvas.width = w; tempCanvas.height = height;
+                    const ctx = tempCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, height);
+                    const imgData = ctx.getImageData(0, 0, w, height).data;
+
+                    // ロジック実行 (Schematic生成)
+                    const CHUNK_SIZE = 32;
+                    const sizeY = height; const depth = 2;
+                    let sizeX = axis === 'Z' ? w : depth;
+                    let sizeZ = axis === 'Z' ? depth : w;
+                    
+                    const blocks = Array.from({ length: sizeY }, () => Array.from({ length: sizeZ }, () => new Array(sizeX).fill(0)));
+                    for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const i = (y * w + x) * 4;
+                            const id = nearestColorID(imgData[i], imgData[i+1], imgData[i+2], imgData[i+3]);
+                            if (!id) continue;
+                            const by = sizeY - 1 - y;
+                            if (axis === 'Z') { blocks[by][0][x] = id; blocks[by][1][x] = id; }
+                            else { blocks[by][x][0] = id; blocks[by][x][1] = id; }
+                        }
+                    }
+
+                    const writer = new BloxdWriter();
+                    writer.u8(4); writer.u8(0); writer.u8(0); writer.u8(0);
+                    writer.str("FromImage");
+                    writer.zigzag(0); writer.zigzag(0); writer.zigzag(0);
+                    writer.zigzag(sizeX); writer.zigzag(sizeY); writer.zigzag(sizeZ);
+                    const CX = Math.ceil(sizeX/32), CY = Math.ceil(sizeY/32), CZ = Math.ceil(sizeZ/32);
+                    writer.zigzag(CX*CY*CZ);
+                    for(let cx=0; cx<CX; cx++) for(let cy=0; cy<CY; cy++) for(let cz=0; cz<CZ; cz++){
+                        writer.zigzag(cx); writer.zigzag(cy); writer.zigzag(cz);
+                        const raw = [];
+                        for(let lx=0; lx<32; lx++) for(let ly=0; ly<32; ly++) for(let lz=0; lz<32; lz++){
+                            const gx=cx*32+lx, gy=cy*32+ly, gz=cz*32+lz;
+                            raw.push((gx<sizeX && gy<sizeY && gz<sizeZ) ? blocks[gy][gz][gx] : 0);
+                        }
+                        writer.bytes(compressRLE(raw));
+                    }
+                    writer.zigzag(0); writer.zigzag(0); writer.zigzag(0); writer.zigzag(0); writer.zigzag(0); writer.u8(0); writer.u8(0);
+
+                    const downloadName = `image_${imgFile.name}_${height}x${w}.bloxdschem`;
                     const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob); a.download = downloadName;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    a.href = URL.createObjectURL(writer.getBlob()); a.download = downloadName;
+                    a.click();
                     setStatus(t.statusDone);
                 } catch (e) { setStatus(`Error: ${e.message}`); }
                 finally { setIsProcessing(false); }
             };
 
-            // テーマに基づく動的スタイル
-            const cardBg = theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-xl';
-            const cardBorder = theme === 'dark' ? 'border-gray-700' : 'border-gray-200';
-            const inputBg = theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100';
-            const inputBorder = theme === 'dark' ? 'border-gray-600' : 'border-gray-300';
-            const statusBg = theme === 'dark' ? 'bg-gray-900' : 'bg-gray-200';
+            const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
             return (
-                <div className="min-h-screen flex items-center justify-center p-4 relative">
-                    {/* 上部ボタンエリア */}
-                    <div className="absolute top-6 left-6 flex gap-2">
-                        <button onClick={() => setShowHowTo(true)} className={`${inputBg} hover:opacity-80 w-10 h-10 rounded-full flex items-center justify-center font-bold border ${cardBorder} transition-all active:scale-90`}>
-                            {t.howToBtn}
-                        </button>
+                <div className={`${theme} min-h-screen flex items-center justify-center p-4 transition-theme ${theme==='dark'?'bg-[#0f172a] text-slate-100':'bg-slate-50 text-slate-900'}`}>
+                    
+                    {/* Floating Controls */}
+                    <div className="fixed top-6 left-6 flex gap-3 z-40">
+                        <button onClick={() => setShowHowTo(true)} className="glass w-12 h-12 rounded-xl flex items-center justify-center font-bold hover:scale-110 transition-transform">?</button>
+                    </div>
+                    <div className="fixed top-6 right-6 flex gap-3 z-40">
+                        <button onClick={toggleTheme} className="glass px-4 py-2 rounded-xl text-lg hover:scale-105 transition-all">{theme==='dark'?'☀️':'🌙'}</button>
+                        <button onClick={() => setLang(lang==='ja'?'en':'ja')} className="glass px-4 py-2 rounded-xl font-bold text-sm hover:scale-105 transition-all">{t.langBtn}</button>
                     </div>
 
-                    <div className="absolute top-6 right-6 flex gap-2">
-                        {/* テーマ切替 */}
-                        <button onClick={toggleTheme} className={`${inputBg} px-3 py-2 rounded-full text-sm font-bold border ${cardBorder} flex items-center gap-1`}>
-                            {theme === 'dark' ? '◻️' : 'dark◼️'}
-                        </button>
-                        {/* 言語切替 */}
-                        <button onClick={toggleLang} className={`${inputBg} px-4 py-2 rounded-full text-sm font-bold border ${cardBorder}`}>
-                            {t.langBtn}
-                        </button>
+                    {/* Main Card */}
+                    <div className={`glass w-full max-w-3xl p-6 md:p-10 rounded-[2rem] shadow-2xl transition-all ${theme==='dark'?'bg-white/5':'bg-black/5'}`}>
+                        <h1 className="text-3xl md:text-4xl font-cyber font-bold mb-2 text-center bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent italic">
+                            {t.title}
+                        </h1>
+                        <div className="mb-8 text-center text-[10px] tracking-widest uppercase opacity-50 font-cyber">
+                            {t.creator}: AIXAI_YT | <a href="https://www.youtube.com/@AIXAI-r7w" className="hover:text-green-400 underline">YouTube</a>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-8">
+                            {/* Left: Inputs */}
+                            <div className="space-y-6">
+                                <div className="group">
+                                    <label className="block text-xs font-cyber mb-2 opacity-70">{t.labelFile}</label>
+                                    <input type="file" accept="image/*" onChange={handleFileChange} className={`w-full text-xs p-3 rounded-xl border ${theme==='dark'?'border-white/10 bg-white/5':'border-black/10 bg-black/5'} cursor-pointer file:hidden`} />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-cyber mb-2 opacity-70">{t.labelHeight}</label>
+                                        <input type="number" value={height} onChange={e => setHeight(Number(e.target.value))} className={`w-full p-3 rounded-xl border font-cyber ${theme==='dark'?'border-white/10 bg-white/5':'border-black/10 bg-black/5'}`} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-cyber mb-2 opacity-70">{t.labelAxis}</label>
+                                        <select value={axis} onChange={e => setAxis(e.target.value)} className={`w-full p-3 rounded-xl border font-cyber ${theme==='dark'?'border-white/10 bg-white/5':'border-black/10 bg-black/5'}`}>
+                                            <option value="Z">{t.axisZ}</option>
+                                            <option value="X">{t.axisX}</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className={`p-4 rounded-2xl text-center font-mono text-xs border ${theme==='dark'?'bg-black/40 border-green-500/30 text-green-400':'bg-white/40 border-green-600/30 text-green-700'} glow-green`}>
+                                    {status}
+                                </div>
+
+                                <button onClick={handleConvert} disabled={!imgFile || isProcessing} className="w-full py-5 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-2xl font-cyber font-bold text-lg hover:shadow-[0_0_20px_rgba(34,197,94,0.4)] disabled:opacity-30 disabled:grayscale transition-all active:scale-95 shadow-lg">
+                                    {isProcessing ? t.btnProcessing : t.btnConvert}
+                                </button>
+                            </div>
+
+                            {/* Right: Preview */}
+                            <div className="flex flex-col">
+                                <label className="block text-xs font-cyber mb-2 opacity-70">{t.previewTitle}</label>
+                                <div className={`flex-1 rounded-3xl overflow-hidden border ${theme==='dark'?'bg-black/40 border-white/10':'bg-slate-200 border-black/10'} min-h-[250px] relative flex flex-col`}>
+                                    {/* Tabs */}
+                                    <div className="flex text-[10px] font-cyber border-b border-white/10">
+                                        <button onClick={()=>setPreviewMode('original')} className={`flex-1 py-2 ${previewMode==='original'?'bg-white/10 text-green-400':''}`}>{t.prevOriginal}</button>
+                                        <button onClick={()=>setPreviewMode('bloxd')} className={`flex-1 py-2 ${previewMode==='bloxd'?'bg-white/10 text-green-400':''}`}>{t.prevBloxd}</button>
+                                    </div>
+                                    {/* Canvas Container */}
+                                    <div className="flex-1 flex items-center justify-center p-4">
+                                        {imgSrc ? <canvas ref={canvasRef} /> : <div className="text-[10px] opacity-20 font-cyber">NO IMAGE</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* モーダル */}
+                    {/* How To Modal */}
                     {showHowTo && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" onClick={() => setShowHowTo(false)}>
-                            <div className={`${cardBg} p-6 rounded-2xl max-w-md w-full border ${cardBorder} shadow-2xl`} onClick={e => e.stopPropagation()}>
-                                <h2 className="text-xl font-bold text-green-500 mb-4 text-center underline">{t.howToTitle}</h2>
-                                <ul className="space-y-4 text-sm leading-relaxed">
-                                    <li>{t.howToStep1}</li>
-                                    <li>{t.howToStep2}</li>
-                                    <li>{t.howToStep3}</li>
-                                    <li>{t.howToStep4}</li>
-                                    <li className={`p-2 rounded border ${inputBorder} ${statusBg} text-green-500 font-mono`}>{t.howToStep5}</li>
-                                </ul>
-                                <button onClick={() => setShowHowTo(false)} className="mt-6 w-full py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-500 transition-colors">
+                            <div className={`glass p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl transition-all ${theme==='dark'?'bg-slate-900':'bg-white'}`} onClick={e => e.stopPropagation()}>
+                                <h2 className="text-2xl font-cyber font-bold text-green-500 mb-6 text-center">{t.howToTitle}</h2>
+                                <div className="space-y-4 text-sm opacity-90 leading-relaxed">
+                                    <p>{t.howToStep1}</p><p>{t.howToStep2}</p><p>{t.howToStep3}</p><p>{t.howToStep4}</p>
+                                    <div className="p-4 rounded-xl bg-black/20 border border-green-500/30 text-green-400 font-mono text-xs">
+                                        {t.howToStep5}
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowHowTo(false)} className="mt-8 w-full py-3 bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-600 transition-colors">
                                     {t.close}
                                 </button>
                             </div>
                         </div>
                     )}
-
-                    <div className={`${cardBg} ${cardBorder} border p-8 rounded-2xl max-w-2xl w-full transition-all`}>
-                        <h1 className="text-2xl md:text-3xl font-bold text-green-500 mb-1 text-center">{t.title}</h1>
-                        <div className="mb-6 text-center text-xs opacity-60">
-                            <p>{t.creator}: <span className="text-green-500 font-bold">AIXAI_YT</span></p>
-                            <p>YouTube: <a href="https://www.youtube.com/@AIXAI-r7w" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">https://www.youtube.com/@AIXAI-r7w</a></p>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block opacity-70 text-sm mb-2 font-bold">{t.labelFile}</label>
-                                <input type="file" accept="image/*" onChange={handleFileChange} className={`w-full ${inputBg} p-2 rounded cursor-pointer border ${inputBorder} file:bg-gray-500 file:text-white file:border-none file:rounded file:px-2 file:mr-2`} />
-                            </div>
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className="block opacity-70 text-sm mb-2 font-bold">{t.labelHeight}</label>
-                                    <input type="number" value={height} onChange={(e) => setHeight(parseInt(e.target.value) || 1)} className={`w-full ${inputBg} p-2 rounded border ${inputBorder} outline-none focus:border-green-500`} />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block opacity-70 text-sm mb-2 font-bold">{t.labelAxis}</label>
-                                    <select value={axis} onChange={(e) => setAxis(e.target.value)} className={`w-full ${inputBg} p-2 rounded border ${inputBorder} cursor-pointer`}>
-                                        <option value={Axis.Z}>{t.axisZ}</option>
-                                        <option value={Axis.X}>{t.axisX}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div className={`${statusBg} p-3 rounded text-green-500 text-center font-mono text-sm border ${inputBorder} min-h-[44px] flex items-center justify-center`}>
-                                {status}
-                            </div>
-
-                            <button onClick={handleConvert} disabled={!imgFile || isProcessing} className="w-full py-4 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-500 disabled:bg-gray-400 transition-all active:scale-95 shadow-lg">
-                                {isProcessing ? t.btnProcessing : t.btnConvert}
-                            </button>
-                            
-                            <div className="text-center text-xs opacity-50 mb-[-1rem]">{t.preview}</div>
-                            <div className={`flex justify-center bg-opacity-20 ${theme === 'dark' ? 'bg-black' : 'bg-gray-300'} p-4 rounded-lg border ${inputBorder} overflow-auto min-h-[100px] items-center italic opacity-60`}>
-                                {imgSrc ? <canvas ref={canvasRef} /> : 'No image'}
-                            </div>
-                        </div>
-                    </div>
                 </div>
             );
         }
