@@ -237,7 +237,7 @@
             }, [imgSrc, height]);
 
             const handleConvert = async () => {
-                if (!imgSrc || !canvasRef.current) return;
+                if (!imgSrc || !canvasRef.current || !imgFile) return;
                 setIsProcessing(true); setStatus(t.statusConverting);
                 try {
                     await new Promise(r => setTimeout(r, 100));
@@ -245,8 +245,13 @@
                     const imgData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
                     const blob = generateSchematic(imgData.data, canvas.width, canvas.height, axis);
                     const url = URL.createObjectURL(blob);
+                    
+                    const fileName = imgFile.name; 
+                    const downloadName = `image_${fileName}_${height}x${canvas.width}.bloxdschem`;
+                    
                     const a = document.createElement('a');
-                    a.href = url; a.download = `image_${canvas.width}x${height}.bloxdschem`;
+                    a.href = url; 
+                    a.download = downloadName;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     setStatus(t.statusDone);
                 } catch (e) { setStatus(`Error: ${e.message}`); }
@@ -255,7 +260,6 @@
 
             return (
                 <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-white relative font-sans">
-                    {/* 左上: 使い方ボタン */}
                     <button 
                         onClick={() => setShowHowTo(true)}
                         className="absolute top-6 left-6 bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center font-bold border border-gray-500 transition-transform active:scale-90"
@@ -263,7 +267,6 @@
                         ？
                     </button>
 
-                    {/* 右上: 言語切り替え */}
                     <button 
                         onClick={toggleLang}
                         className="absolute top-6 right-6 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-full text-sm font-bold border border-gray-500"
@@ -271,7 +274,6 @@
                         {t.langBtn}
                     </button>
 
-                    {/* 使い方モーダル */}
                     {showHowTo && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" onClick={() => setShowHowTo(false)}>
                             <div className="bg-gray-800 p-6 rounded-2xl max-w-md w-full border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
